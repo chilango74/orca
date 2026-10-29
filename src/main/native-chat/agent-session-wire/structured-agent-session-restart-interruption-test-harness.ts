@@ -3,7 +3,7 @@ import {
   type AgentJournalRenderItem
 } from '../../../shared/agent-session-journal-types'
 import { AgentSessionAcquisitionRootExitObservedError } from './structured-agent-session-adapter'
-import { withNativeChatCutTurnNotices } from '../../../shared/native-chat-cut-turn-notice'
+import { withNativeChatCutTurnNotices } from '../../../shared/native-chat/transcript/native-chat-cut-turn-notice'
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
