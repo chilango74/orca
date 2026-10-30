@@ -44,7 +44,10 @@ export class Session extends SessionProcessInspection {
   constructor(opts: SessionOptions) {
     super(opts.subprocess)
     this.sessionId = opts.sessionId
-    this.shellLifecycle = new ManagedShellLifecycle(opts.subprocess.shellLifecycleBinding)
+    this.shellLifecycle = new ManagedShellLifecycle(
+      opts.subprocess.shellLifecycleBinding,
+      opts.subprocess.shellLifecycleStatePath
+    )
     this.terminalHandle = opts.terminalHandle ?? null
     this.launchAgent = opts.launchAgent ?? null
     this.wslDistro = opts.wslDistro ?? null

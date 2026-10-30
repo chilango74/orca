@@ -100,6 +100,7 @@ __orca_osc133_preexec() {
     # The prefix is only special while bash-preexec prompt hooks run.
     __bp_*) [[ -n "\${__orca_in_prompt_command:-}" ]] && return 0 ;;
   esac
+  [[ -n "\${__orca_in_command:-}" ]] || __orca_osc133_observe running
   __orca_run_user_debug_trap
   # Chain the framework trap captured before each prompt's lifecycle re-arm.
   if [[ -n "\${__orca_chained_debug_trap:-}" ]]; then
@@ -110,7 +111,6 @@ __orca_osc133_preexec() {
   [[ -z "\${__orca_in_command:-}" ]] || return 0
   printf "\\033]133;C\\007"
   __orca_in_command=1
-  __orca_osc133_observe running
 }
 # Adopt the latest user trap before reclaiming lifecycle ownership.
 __orca_osc133_epilogue() {

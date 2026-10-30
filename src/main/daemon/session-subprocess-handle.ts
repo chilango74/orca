@@ -20,6 +20,7 @@ export type SubprocessHandle = {
   /** Skip stdin command delivery when shell arguments already delivered it. */
   startupCommandDeliveredInShellArgs?: boolean
   shellLifecycleBinding?: string
+  shellLifecycleStatePath?: string
   /** Report the actual fallback shell so unsupported readiness markers cannot stall startup. */
   shellPath?: string
   shellCwd?: string

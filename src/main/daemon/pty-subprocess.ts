@@ -1,4 +1,8 @@
 import { SHELL_LIFECYCLE_BINDING_ENV } from '../managed-shell-lifecycle'
+import {
+  SHELL_LIFECYCLE_STATE_ENV,
+  withShellLifecycleStateFile
+} from '../managed-shell-lifecycle-state-file'
 import type { SubprocessHandle } from './session-subprocess-handle'
 import { normalizePtySize } from './daemon-pty-size'
 import { TerminalAttachCanceledError } from './daemon-errors'
@@ -65,57 +69,60 @@ export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<S
   const size = normalizePtySize(opts.cols, opts.rows)
   const env = createDaemonPtyEnvironment(opts)
   delete env[SHELL_LIFECYCLE_BINDING_ENV]
+  delete env[SHELL_LIFECYCLE_STATE_ENV]
   const launch = createPtyShellLaunchPlan(opts, env)
 
-  await preflightPtySpawn({
-    validationCwd: launch.validationCwd,
-    cwdWasExplicit: opts.cwd !== undefined,
-    sessionId: opts.sessionId,
-    ...(opts.cancelSignal ? { signal: opts.cancelSignal } : {})
-  })
-  if (opts.isCanceled?.()) {
-    throw new TerminalAttachCanceledError(opts.sessionId)
-  }
-
-  let spawned: SpawnedDaemonPty
-  try {
-    spawned = await spawnNativeDaemonPty({
-      shellPath: launch.shellPath,
-      shellArgs: launch.shellArgs,
-      spawnCwd: launch.spawnCwd,
-      env,
-      cols: size.cols,
-      rows: size.rows,
-      windowsFallbackAttempts: launch.windowsFallbackAttempts,
-      // User-configured shell args can carry a command (`pwsh -Command ...`); never respawn those.
-      primaryArgsRespawnSafe:
-        !launch.startupCommandDeliveredInShellArgs && !opts.terminalShellArgs?.length,
-      onMacosTccSpawnStrategy: opts.onMacosTccSpawnStrategy,
+  return withShellLifecycleStateFile(env, async () => {
+    await preflightPtySpawn({
+      validationCwd: launch.validationCwd,
+      cwdWasExplicit: opts.cwd !== undefined,
+      sessionId: opts.sessionId,
       ...(opts.cancelSignal ? { signal: opts.cancelSignal } : {})
     })
-  } catch (error) {
-    // A cancel that lands while ConPTY's startup is awaited is a cancel, not a spawn failure.
-    if (opts.cancelSignal?.aborted) {
+    if (opts.isCanceled?.()) {
       throw new TerminalAttachCanceledError(opts.sessionId)
     }
-    if (process.platform === 'win32') {
-      throw formatPtySpawnError(error, launch.shellPath, launch.spawnCwd)
-    }
-    throw error
-  }
 
-  return createDaemonPtySubprocessHandle({
-    process: spawned.process,
-    shellPath: spawned.shellPath,
-    spawnCwd: spawned.spawnCwd,
-    env,
-    startupCommandDeliveredInShellArgs:
-      spawned.startupCommandDeliveredInShellArgs ?? launch.startupCommandDeliveredInShellArgs,
-    reportsChildExitStatus: spawned.reportsChildExitStatus,
-    requestedCwd: opts.cwd,
-    sessionId: opts.sessionId,
-    startupAgentRecognition: launch.startupAgentRecognition,
-    // Claimed here, synchronously with the handle's own subscription, so no event falls between.
-    ...(spawned.claimStartupEvents ? { startupEvents: spawned.claimStartupEvents() } : {})
+    let spawned: SpawnedDaemonPty
+    try {
+      spawned = await spawnNativeDaemonPty({
+        shellPath: launch.shellPath,
+        shellArgs: launch.shellArgs,
+        spawnCwd: launch.spawnCwd,
+        env,
+        cols: size.cols,
+        rows: size.rows,
+        windowsFallbackAttempts: launch.windowsFallbackAttempts,
+        // User-configured shell args can carry a command (`pwsh -Command ...`); never respawn those.
+        primaryArgsRespawnSafe:
+          !launch.startupCommandDeliveredInShellArgs && !opts.terminalShellArgs?.length,
+        onMacosTccSpawnStrategy: opts.onMacosTccSpawnStrategy,
+        ...(opts.cancelSignal ? { signal: opts.cancelSignal } : {})
+      })
+    } catch (error) {
+      // A cancel that lands while ConPTY's startup is awaited is a cancel, not a spawn failure.
+      if (opts.cancelSignal?.aborted) {
+        throw new TerminalAttachCanceledError(opts.sessionId)
+      }
+      if (process.platform === 'win32') {
+        throw formatPtySpawnError(error, launch.shellPath, launch.spawnCwd)
+      }
+      throw error
+    }
+
+    return createDaemonPtySubprocessHandle({
+      process: spawned.process,
+      shellPath: spawned.shellPath,
+      spawnCwd: spawned.spawnCwd,
+      env,
+      startupCommandDeliveredInShellArgs:
+        spawned.startupCommandDeliveredInShellArgs ?? launch.startupCommandDeliveredInShellArgs,
+      reportsChildExitStatus: spawned.reportsChildExitStatus,
+      requestedCwd: opts.cwd,
+      sessionId: opts.sessionId,
+      startupAgentRecognition: launch.startupAgentRecognition,
+      // Claimed here, synchronously with the handle's own subscription, so no event falls between.
+      ...(spawned.claimStartupEvents ? { startupEvents: spawned.claimStartupEvents() } : {})
+    })
   })
 }

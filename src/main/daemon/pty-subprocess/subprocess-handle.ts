@@ -1,4 +1,9 @@
 import { SHELL_LIFECYCLE_BINDING_ENV } from '../../managed-shell-lifecycle'
+import {
+  SHELL_LIFECYCLE_STATE_ENV,
+  claimShellLifecycleStateFile,
+  releaseShellLifecycleStateFile
+} from '../../managed-shell-lifecycle-state-file'
 import type * as pty from 'node-pty'
 import type { RecognizedAgentProcess } from '../../../shared/agent-process-recognition'
 import { readPtySlavePath } from '../../../shared/pty-slave-line-discipline-echo'
@@ -43,6 +48,7 @@ export function createDaemonPtySubprocessHandle(args: {
   const reportsChildExitStatus = args.reportsChildExitStatus
   const shellPath = args.shellPath
   const proc = args.process
+  const shellLifecycleStatePath = args.env[SHELL_LIFECYCLE_STATE_ENV]
   // node-pty exposes destroy at runtime but omits it from IPty.
   const nativeProc: DisposableNativePty = proc
   const events = new PtyPreListenerEvents()
@@ -118,6 +124,7 @@ export function createDaemonPtySubprocessHandle(args: {
     // Exit listeners may re-enter cleanup; retire signal authority before notifying them.
     dead = true
     exited = true
+    releaseShellLifecycleStateFile(shellLifecycleStatePath)
     clearMasterRetiredTimer()
     foreground.markDead()
     // Neutralize kill before an async socket-close SIGHUP can target a recycled PID.
@@ -177,6 +184,7 @@ export function createDaemonPtySubprocessHandle(args: {
   }
 
   const slavePath = readPtySlavePath(proc)
+  claimShellLifecycleStateFile(shellLifecycleStatePath)
   return {
     pid: proc.pid,
     processNameIsSpawnFile: ptyProcessNameIsSpawnFile(proc),
@@ -190,6 +198,7 @@ export function createDaemonPtySubprocessHandle(args: {
       : {}),
     shellPath: args.shellPath,
     shellLifecycleBinding: args.env[SHELL_LIFECYCLE_BINDING_ENV],
+    shellLifecycleStatePath,
     shellCwd: args.spawnCwd,
     shellPathEnv: args.env.PATH,
     ...(slavePath ? { slavePath } : {}),

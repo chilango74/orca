@@ -53,12 +53,8 @@ describe.skipIf(process.platform === 'win32')('direct local Bash lifecycle', () 
       const before = output.split('DIRECT_PROMPT> ').length
       provider.write(spawned.id, 'done\r')
       await vi.waitFor(() => expect(output.split('DIRECT_PROMPT> ').length).toBeGreaterThan(before))
-      expect((await inspect()).shellLifecycle?.phase).not.toBe('prompt')
-      provider.write(spawned.id, ':\r')
       await vi.waitFor(async () =>
-        expect((await inspect()).shellLifecycle).toEqual(
-          expect.objectContaining({ phase: 'prompt' })
-        )
+        expect((await inspect()).shellLifecycle).toMatchObject({ phase: 'prompt' })
       )
       expect(output).not.toContain('orca-shell-lifecycle;')
     } finally {
@@ -72,5 +68,6 @@ describe.skipIf(process.platform === 'win32')('direct local Bash lifecycle', () 
       }
       rmSync(home, { recursive: true, force: true })
     }
+    // Native shell startup and descendant shutdown can each wait for process-host barriers.
   }, 15_000)
 })

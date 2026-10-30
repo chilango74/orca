@@ -170,8 +170,9 @@ export class LocalPtyProvider implements IPtyProvider {
         ...(options?.includeShellLifecycle && incarnation && lifecycle
           ? {
               shellLifecycle: {
-                ...lifecycle.observe('unverifiable'),
+                ...(await lifecycle.observe('unverifiable')),
                 phase: 'unknown' as const,
+                confidence: 'none' as const,
                 reason: 'incarnation-mismatch',
                 ptyIncarnationId: incarnation,
                 authorityGeneration: SHELL_LIFECYCLE_AUTHORITY
@@ -202,17 +203,22 @@ export class LocalPtyProvider implements IPtyProvider {
         options?.ignoreDetached === true
       )
     }
-    // Neither asynchronous inspection may publish a replacement pane's identity.
+    const shellLifecycle =
+      options?.includeShellLifecycle && lifecycle
+        ? await lifecycle.observe(childProcessEvidence, lifecycleGeneration)
+        : undefined
+    // No asynchronous inspection may publish a replacement pane's identity.
     if (ptyProcesses.get(id) !== proc || ptyIncarnations.get(id) !== incarnation) {
       return {
         foregroundProcess: null,
         hasChildProcesses: true,
         childProcessEvidence: 'unverifiable',
-        ...(options?.includeShellLifecycle && lifecycle
+        ...(shellLifecycle
           ? {
               shellLifecycle: {
-                ...lifecycle.observe('unverifiable'),
+                ...shellLifecycle,
                 phase: 'unknown' as const,
+                confidence: 'none' as const,
                 reason: 'incarnation-changed',
                 ptyIncarnationId: incarnation,
                 authorityGeneration: SHELL_LIFECYCLE_AUTHORITY
@@ -225,10 +231,10 @@ export class LocalPtyProvider implements IPtyProvider {
       foregroundProcess,
       hasChildProcesses: childProcessEvidence !== 'no-children',
       childProcessEvidence,
-      ...(options?.includeShellLifecycle && lifecycle
+      ...(shellLifecycle
         ? {
             shellLifecycle: {
-              ...lifecycle.observe(childProcessEvidence, lifecycleGeneration),
+              ...shellLifecycle,
               ptyIncarnationId: incarnation,
               authorityGeneration: SHELL_LIFECYCLE_AUTHORITY
             }

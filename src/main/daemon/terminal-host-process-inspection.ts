@@ -177,18 +177,22 @@ export async function inspectTerminalHostProcess(args: {
     ...(args.includeShellLifecycle
       ? {
           shellLifecycle: {
-            ...session.shellLifecycle.observe(
+            ...(await session.shellLifecycle.observe(
               incarnationMatches &&
                 session.isAlive &&
                 (!args.currentSession || args.currentSession() === session)
                 ? (childProcessEvidence ?? 'unverifiable')
                 : 'unverifiable',
               lifecycleGeneration
-            ),
+            )),
             ptyIncarnationId: session.incarnationId,
             authorityGeneration: args.authorityGeneration,
             ...(!incarnationMatches
-              ? { phase: 'unknown' as const, reason: 'incarnation-mismatch' }
+              ? {
+                  phase: 'unknown' as const,
+                  confidence: 'none' as const,
+                  reason: 'incarnation-mismatch'
+                }
               : {}),
             ...(!session.isAlive || (args.currentSession && args.currentSession() !== session)
               ? {

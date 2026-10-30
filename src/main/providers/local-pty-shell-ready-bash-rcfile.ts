@@ -103,13 +103,13 @@ __orca_osc133_preexec() {
   fi
   case "\${FUNCNAME[1]:-}" in __orca_osc133_*|__orca_prompt_mark|__orca_restore_prompt_status) return 0 ;; esac
   case "$BASH_COMMAND" in __orca_osc133_precmd|__orca_osc133_prompt_done|__orca_prompt_mark) return 0 ;; esac
+  [[ -n "\${__orca_in_command:-}" ]] || __orca_osc133_observe running
   __orca_run_user_debug_trap
   [[ -z "\${__orca_in_prompt_command:-}" ]] || return 0
   [[ -z "\${__orca_in_command:-}" ]] || return 0
   # DEBUG runs per simple command; chained traps may reenter for the same foreground command.
   printf "\\033]133;C\\007"
   __orca_in_command=1
-  __orca_osc133_observe running
 }
 # Capture $? before the user's PROMPT_COMMAND chain mutates it.
 ${BASH_PROMPT_COMMAND_COMPOSITION_BLOCK}

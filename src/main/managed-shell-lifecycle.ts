@@ -1,3 +1,4 @@
+import { readShellLifecycleStateFile } from './managed-shell-lifecycle-state-file'
 import type { ShellLifecycleObservation } from '../shared/terminal-shell-lifecycle'
 import type { PtyChildProcessVerdict } from '../shared/terminal-process-inspection'
 
@@ -15,9 +16,11 @@ export class ManagedShellLifecycle {
   private phase: ShellLifecycleObservation['phase'] = 'unknown'
   private reason = 'missing-integration'
   private signalAt: number | null = null
-  private inputUnacknowledged = false
 
-  constructor(private readonly binding: string | undefined) {}
+  constructor(
+    private readonly binding: string | undefined,
+    private readonly statePath?: string
+  ) {}
 
   get generation(): number {
     return this.revision
@@ -65,23 +68,28 @@ export class ManagedShellLifecycle {
   }
 
   invalidateInput(): void {
-    this.inputUnacknowledged = true
     this.invalidate('input')
   }
 
-  observe(
+  async observe(
     children: PtyChildProcessVerdict,
     expectedGeneration = this.revision
-  ): ShellLifecycleObservation {
-    const age = this.signalAt === null ? null : Math.max(0, performance.now() - this.signalAt)
+  ): Promise<ShellLifecycleObservation> {
+    const live = this.phase === 'unknown' ? null : await readShellLifecycleStateFile(this.statePath)
+    const receiptAge =
+      this.signalAt === null ? null : Math.max(0, performance.now() - this.signalAt)
+    const age = live === null ? receiptAge : Math.max(receiptAge ?? 0, live.ageMs)
     const reason =
       expectedGeneration !== this.revision
         ? 'generation-changed'
-        : age !== null && age > MAX_SIGNAL_AGE_MS
-          ? 'stale'
-          : this.phase === 'prompt' && children !== 'no-children'
-            ? children
-            : this.reason
+        : this.phase !== 'unknown' &&
+            (!live || live.value !== `${this.binding};${this.sequence};${this.phase}\n`)
+          ? 'live-state-unverifiable'
+          : age !== null && age > MAX_SIGNAL_AGE_MS
+            ? 'stale'
+            : this.phase === 'prompt' && children !== 'no-children'
+              ? children
+              : this.reason
     return {
       confidence:
         reason === 'managed-bash-prompt' || reason === 'managed-bash-command'
@@ -130,12 +138,6 @@ export class ManagedShellLifecycle {
         : phase === 'running'
           ? 'managed-bash-command'
           : 'unsupported-hooks'
-    if (phase === 'running') {
-      this.inputUnacknowledged = false
-    }
-    if (phase === 'prompt' && this.inputUnacknowledged) {
-      this.invalidate('input-unacknowledged')
-    }
   }
 
   private invalidate(reason: string): void {
