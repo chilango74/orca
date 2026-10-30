@@ -7,6 +7,7 @@ import { LocalPtyProvider } from './local-pty-provider'
 vi.mock('electron', () => ({ app: { getPath: () => process.env.ORCA_USER_DATA_PATH } }))
 
 describe.skipIf(process.platform === 'win32')('direct local Bash lifecycle', () => {
+  // Real PTY startup and descendant shutdown have bounded process-host waits.
   it('fences observation to the live PTY and never exposes the private binding', async () => {
     const home = mkdtempSync(join(tmpdir(), 'orca-direct-lifecycle-'))
     const original = process.env.ORCA_USER_DATA_PATH
@@ -68,6 +69,5 @@ describe.skipIf(process.platform === 'win32')('direct local Bash lifecycle', () 
       }
       rmSync(home, { recursive: true, force: true })
     }
-    // Native shell startup and descendant shutdown can each wait for process-host barriers.
   }, 15_000)
 })

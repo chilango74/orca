@@ -9,8 +9,10 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ManagedShellLifecycle } from './managed-shell-lifecycle'
+
+const FIXED_TIME = Date.parse('2030-01-01T00:00:00Z')
 
 const event = (sequence: number, phase: string) =>
   `\x1b]777;orca-shell-lifecycle;fixture-binding;${sequence};${phase}\x07`
@@ -19,12 +21,18 @@ describe.skipIf(process.platform === 'win32')('live shell lifecycle corroboratio
   let root: string
   let statePath: string
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXED_TIME)
     root = mkdtempSync(join(tmpdir(), 'orca-lifecycle-state-test-'))
     statePath = join(root, 'state')
   })
-  afterEach(() => rmSync(root, { recursive: true, force: true }))
+  afterEach(() => {
+    vi.useRealTimers()
+    rmSync(root, { recursive: true, force: true })
+  })
   const state = (sequence: number, phase: string) => {
     writeFileSync(statePath, `fixture-binding;${sequence};${phase}\n`, { mode: 0o600 })
+    utimesSync(statePath, new Date(FIXED_TIME), new Date(FIXED_TIME))
   }
 
   it('rejects an old parsed prompt while the live producer is executing a newer builtin', async () => {
@@ -85,7 +93,7 @@ describe.skipIf(process.platform === 'win32')('live shell lifecycle corroboratio
       chmodSync(statePath, 0o644)
     }
     if (fault === 'future') {
-      const future = new Date(Date.now() + 60_000)
+      const future = new Date(FIXED_TIME + 60_000)
       utimesSync(statePath, future, future)
     }
     if (fault === 'directory') {
@@ -114,7 +122,7 @@ describe.skipIf(process.platform === 'win32')('live shell lifecycle corroboratio
   it('does not freshen a queued old prompt when it reaches the host late', async () => {
     const lifecycle = new ManagedShellLifecycle('fixture-binding', statePath)
     state(1, 'prompt')
-    const old = new Date(Date.now() - 31_000)
+    const old = new Date(FIXED_TIME - 31_000)
     utimesSync(statePath, old, old)
     lifecycle.accept(event(1, 'prompt'))
     expect(await lifecycle.observe('no-children')).toMatchObject({
