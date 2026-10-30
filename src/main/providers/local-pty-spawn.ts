@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { SHELL_LIFECYCLE_BINDING_ENV } from '../managed-shell-lifecycle'
 import { win32 as pathWin32 } from 'node:path'
 import { mkdir } from 'node:fs/promises'
 import { JCODE_RUNTIME_DIR_ENV_KEY } from '../../shared/jcode-runtime-dir'
@@ -87,6 +88,7 @@ export async function spawnLocalPty(
     const finalEnv = envResult instanceof Promise ? await envResult : envResult
     throwIfCanceled()
     enforceLocalPtySpawnEnvironmentOverrides(args, finalEnv)
+    delete finalEnv[SHELL_LIFECYCLE_BINDING_ENV]
     const historyResult = finalizeLocalPtySpawnEnvironment({
       spawn: args,
       getOptions,
@@ -121,9 +123,12 @@ export async function spawnLocalPty(
         getShellReadyConfig: plan.getFallbackShellReadyConfig,
         preLaunchEnv: plan.primaryPreLaunchEnv,
         // Correct fallback HISTFILE before spawn; zsh_history cannot serve a bash fallback.
-        onBeforeFallbackSpawn: fallbackHistory
-          ? (env, fallbackShell) => updateHistoryEnvForFallback(env, fallbackShell, fallbackHistory)
-          : undefined,
+        onBeforeFallbackSpawn: (env, fallbackShell) => {
+          delete env[SHELL_LIFECYCLE_BINDING_ENV]
+          if (fallbackHistory) {
+            updateHistoryEnvForFallback(env, fallbackShell, fallbackHistory)
+          }
+        },
         windowsFallbackAttempts: plan.windowsFallbackAttempts
       })
       const spawnResult = pendingSpawn instanceof Promise ? await pendingSpawn : pendingSpawn

@@ -1,4 +1,5 @@
 import type * as pty from 'node-pty'
+import { ManagedShellLifecycle, SHELL_LIFECYCLE_BINDING_ENV } from '../managed-shell-lifecycle'
 import { isBracketedPasteSafeShell } from '../../shared/startup-command-submission'
 import {
   discardStagedStartupCommand,
@@ -24,6 +25,7 @@ import {
   ptyDisposables,
   ptyExitDisposables,
   ptyIncarnations,
+  ptyShellLifecycles,
   ptyInitialCwd,
   ptyLoadGeneration,
   ptyPhysicalExits,
@@ -77,6 +79,8 @@ export function activateLocalPtySession(args: {
   )
   ptyLoadGeneration.set(id, getLoadGeneration())
   ptyIncarnations.set(id, incarnationId)
+  const shellLifecycle = new ManagedShellLifecycle(env[SHELL_LIFECYCLE_BINDING_ENV])
+  ptyShellLifecycles.set(id, shellLifecycle)
   getOptions().onSpawned?.(id, incarnationId)
 
   const emitIngressData = (emission: PtyIngressEmission): void => {
@@ -125,7 +129,7 @@ export function activateLocalPtySession(args: {
   })
   const disposables: { dispose: () => void }[] = []
   const onDataDisposable = proc.onData((rawData) => {
-    readiness.acceptData(rawData)
+    readiness.acceptData(shellLifecycle.accept(rawData))
   })
   if (onDataDisposable) {
     disposables.push(onDataDisposable)
@@ -207,7 +211,8 @@ export function activateLocalPtySession(args: {
         readiness.setStartupCommandCleanup(cleanup)
       },
       {
-        bracketedPasteSafe
+        bracketedPasteSafe,
+        beforeWrite: () => shellLifecycle.invalidateInput()
       }
     )
   }

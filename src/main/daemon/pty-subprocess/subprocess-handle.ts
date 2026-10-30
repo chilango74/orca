@@ -1,3 +1,4 @@
+import { SHELL_LIFECYCLE_BINDING_ENV } from '../../managed-shell-lifecycle'
 import type * as pty from 'node-pty'
 import type { RecognizedAgentProcess } from '../../../shared/agent-process-recognition'
 import { readPtySlavePath } from '../../../shared/pty-slave-line-discipline-echo'
@@ -188,6 +189,7 @@ export function createDaemonPtySubprocessHandle(args: {
         }
       : {}),
     shellPath: args.shellPath,
+    shellLifecycleBinding: args.env[SHELL_LIFECYCLE_BINDING_ENV],
     shellCwd: args.spawnCwd,
     shellPathEnv: args.env.PATH,
     ...(slavePath ? { slavePath } : {}),

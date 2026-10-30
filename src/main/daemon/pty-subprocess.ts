@@ -1,3 +1,4 @@
+import { SHELL_LIFECYCLE_BINDING_ENV } from '../managed-shell-lifecycle'
 import type { SubprocessHandle } from './session-subprocess-handle'
 import { normalizePtySize } from './daemon-pty-size'
 import { TerminalAttachCanceledError } from './daemon-errors'
@@ -63,6 +64,7 @@ export async function checkPtySpawnHealth(): Promise<void> {
 export async function createPtySubprocess(opts: PtySubprocessOptions): Promise<SubprocessHandle> {
   const size = normalizePtySize(opts.cols, opts.rows)
   const env = createDaemonPtyEnvironment(opts)
+  delete env[SHELL_LIFECYCLE_BINDING_ENV]
   const launch = createPtyShellLaunchPlan(opts, env)
 
   await preflightPtySpawn({
